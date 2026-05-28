@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.19.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.22.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.27.0 // indirect
-	github.com/aws/smithy-go v1.20.2 // indirect
+	github.com/aws/smithy-go v1.26.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -36,7 +36,7 @@ require (
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
-	go.temporal.io/api v1.62.7 // indirect
+	go.temporal.io/api v1.62.7
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect

@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -10,8 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	cwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
-	"go.temporal.io/sdk/client"
+	"github.com/aws/smithy-go"
 	"go.temporal.io/api/workflowservice/v1"
+	"go.temporal.io/sdk/client"
 
 	"github.com/temporalio/temporal-serverless-no-roads/demo-app/cache"
 	"github.com/temporalio/temporal-serverless-no-roads/shared/taskqueue"
@@ -25,9 +28,9 @@ type MetricsResponse struct {
 	BacklogDepth       float64 `json:"backlogDepth"`
 }
 
-// MetricsHandler fans out to Temporal Cloud metrics and CloudWatch
-// concurrently, merges results, and returns JSON. Responses are cached for
-// a short TTL to avoid hammering both APIs when many browser tabs are polling.
+// MetricsHandler fans out to Temporal and CloudWatch concurrently, merges
+// results, and returns JSON. Responses are cached for a short TTL to avoid
+// hammering both APIs when many browser tabs are polling simultaneously.
 func MetricsHandler(
 	tc client.Client,
 	cwClient *cloudwatch.Client,
@@ -51,50 +54,50 @@ func MetricsHandler(
 			wg       sync.WaitGroup
 			mu       sync.Mutex
 			response MetricsResponse
-			errs     []error
 		)
 
-		// Fan-out 1: Temporal Cloud — running and completed workflow counts.
+		// Fan-out 1: Temporal — running and completed workflow counts.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			running, completed, err := fetchTemporalWorkflowCounts(ctx, tc)
-			mu.Lock()
-			defer mu.Unlock()
 			if err != nil {
-				errs = append(errs, err)
+				log.Printf("metrics: fetchTemporalWorkflowCounts: %v", err)
 				return
 			}
+			mu.Lock()
 			response.RunningWorkflows = running
 			response.CompletedWorkflows = completed
+			mu.Unlock()
 		}()
 
 		// Fan-out 2: CloudWatch — Lambda concurrent executions.
+		// Degrades gracefully to 0 when running locally without AWS credentials.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			concurrency, err := fetchLambdaConcurrency(ctx, cwClient, lambdaFunctionName)
-			mu.Lock()
-			defer mu.Unlock()
 			if err != nil {
-				errs = append(errs, err)
+				log.Printf("metrics: fetchLambdaConcurrency: %v", err)
 				return
 			}
+			mu.Lock()
 			response.LambdaConcurrency = concurrency
+			mu.Unlock()
 		}()
 
-		// Fan-out 3: Temporal Cloud metrics — task queue backlog depth.
+		// Fan-out 3: Temporal — task queue backlog depth.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			backlog, err := fetchTaskQueueBacklog(ctx, tc)
-			mu.Lock()
-			defer mu.Unlock()
 			if err != nil {
-				errs = append(errs, err)
+				log.Printf("metrics: fetchTaskQueueBacklog: %v", err)
 				return
 			}
+			mu.Lock()
 			response.BacklogDepth = backlog
+			mu.Unlock()
 		}()
 
 		wg.Wait()
@@ -105,10 +108,9 @@ func MetricsHandler(
 	}
 }
 
-// fetchTemporalWorkflowCounts queries Temporal Cloud for running and completed
-// workflow counts on the demo task queue via the List API.
+// fetchTemporalWorkflowCounts queries Temporal for running and completed
+// workflow counts on the demo task queue.
 func fetchTemporalWorkflowCounts(ctx context.Context, tc client.Client) (running, completed int64, err error) {
-	// Query running workflows
 	runningResp, err := tc.CountWorkflow(ctx, &workflowservice.CountWorkflowExecutionsRequest{
 		Query: `TaskQueue="` + taskqueue.DemoTaskQueue + `" AND ExecutionStatus="Running"`,
 	})
@@ -116,7 +118,6 @@ func fetchTemporalWorkflowCounts(ctx context.Context, tc client.Client) (running
 		return 0, 0, err
 	}
 
-	// Query completed workflows
 	completedResp, err := tc.CountWorkflow(ctx, &workflowservice.CountWorkflowExecutionsRequest{
 		Query: `TaskQueue="` + taskqueue.DemoTaskQueue + `" AND ExecutionStatus="Completed"`,
 	})
@@ -128,7 +129,8 @@ func fetchTemporalWorkflowCounts(ctx context.Context, tc client.Client) (running
 }
 
 // fetchLambdaConcurrency queries CloudWatch for the ConcurrentExecutions metric
-// for the Lambda function over the last 60 seconds.
+// over the last 60 seconds. Returns 0, nil when running locally without AWS
+// credentials so the rest of the metrics response is unaffected.
 func fetchLambdaConcurrency(ctx context.Context, cwClient *cloudwatch.Client, functionName string) (float64, error) {
 	now := time.Now()
 	resp, err := cwClient.GetMetricStatistics(ctx, &cloudwatch.GetMetricStatisticsInput{
@@ -146,6 +148,16 @@ func fetchLambdaConcurrency(ctx context.Context, cwClient *cloudwatch.Client, fu
 		Statistics: []cwtypes.Statistic{cwtypes.StatisticMaximum},
 	})
 	if err != nil {
+		// Treat missing/invalid credentials as a graceful zero — expected in
+		// local dev where no AWS credentials are configured.
+		var ae smithy.APIError
+		if errors.As(err, &ae) &&
+			(ae.ErrorCode() == "AuthFailure" ||
+				ae.ErrorCode() == "InvalidClientTokenId" ||
+				ae.ErrorCode() == "ExpiredTokenException" ||
+				ae.ErrorCode() == "NoCredentialProviders") {
+			return 0, nil
+		}
 		return 0, err
 	}
 
@@ -157,15 +169,14 @@ func fetchLambdaConcurrency(ctx context.Context, cwClient *cloudwatch.Client, fu
 	return aws.ToFloat64(resp.Datapoints[0].Maximum), nil
 }
 
-// fetchTaskQueueBacklog queries the Temporal Cloud task queue stats for
-// approximate backlog depth on the demo task queue.
+// fetchTaskQueueBacklog queries Temporal task queue stats for approximate
+// backlog depth on the demo task queue.
 func fetchTaskQueueBacklog(ctx context.Context, tc client.Client) (float64, error) {
 	resp, err := tc.DescribeTaskQueue(ctx, taskqueue.DemoTaskQueue, 0)
 	if err != nil {
 		return 0, err
 	}
 
-	// TaskQueueStats.ApproximateBacklogCount is the field we want.
 	if resp.Stats != nil {
 		return float64(resp.Stats.ApproximateBacklogCount), nil
 	}
