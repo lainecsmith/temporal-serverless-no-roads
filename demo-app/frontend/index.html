@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Serverless Workers — Live Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0f1117;
+      --bg-card:      #1a1d27;
+      --bg-input:     #13151f;
+      --border:       rgba(255,255,255,0.08);
+      --border-focus: rgba(255,255,255,0.22);
+      --text-primary: #f0f2f8;
+      --text-secondary: #9095a8;
+      --text-tertiary:  #5a5f70;
+      --green:        #1ac98e;
+      --green-bg:     rgba(26,201,142,0.12);
+      --blue:         #4f8ef7;
+      --blue-bg:      rgba(79,142,247,0.12);
+      --amber:        #f0a030;
+      --amber-bg:     rgba(240,160,48,0.12);
+      --gray-bg:      rgba(255,255,255,0.06);
+      --radius-sm:    6px;
+      --radius-md:    10px;
+      --radius-lg:    14px;
+      --font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    .header {
+      margin-bottom: 2rem;
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .header-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.03em;
+    }
+    .badge-blue   { background: var(--blue-bg);  color: var(--blue);  }
+    .badge-green  { background: var(--green-bg); color: var(--green); }
+    .badge-gray   { background: var(--gray-bg);  color: var(--text-secondary); }
+    .header-sub {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Card ─────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+    }
+
+    /* ── Submit form ──────────────────────────────────────────────────────── */
+    .submit-row {
+      display: flex;
+      gap: 8px;
+    }
+    .submit-row input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 15px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .submit-row input::placeholder { color: var(--text-tertiary); }
+    .submit-row input:focus { border-color: var(--border-focus); }
+
+    .btn {
+      background: var(--blue);
+      border: none;
+      border-radius: var(--radius-md);
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover  { opacity: 0.88; }
+    .btn:active { opacity: 0.75; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .submit-msg {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 10px;
+      min-height: 18px;
+    }
+    .submit-msg.ok  { color: var(--green); }
+    .submit-msg.err { color: #f05a5a; }
+
+    /* ── Stat cards ───────────────────────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .dot-green  { background: var(--green); }
+    .dot-blue   { background: var(--blue);  }
+    .dot-amber  { background: var(--amber); }
+    .dot-gray   { background: #555870;      }
+
+    .stat-value {
+      font-size: 34px;
+      font-weight: 500;
+      line-height: 1.1;
+      color: var(--text-primary);
+    }
+    .stat-value.green { color: var(--green); }
+    .stat-value.blue  { color: var(--blue);  }
+    .stat-value.amber { color: var(--amber); }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 3px;
+    }
+
+    /* ── Sparkline charts ─────────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .chart-peak {
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .chart-peak.blue  { color: var(--blue);  }
+    .chart-peak.amber { color: var(--amber); }
+
+    .spark {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 56px;
+    }
+    .spark-bar {
+      flex: 1;
+      border-radius: 2px 2px 0 0;
+      min-width: 3px;
+      align-self: flex-end;
+      transition: height 0.3s ease;
+    }
+    .chart-time {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    /* ── Activity feed ────────────────────────────────────────────────────── */
+    .feed-empty {
+      text-align: center;
+      padding: 1.5rem 0;
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+    .feed-empty i {
+      font-size: 24px;
+      display: block;
+      margin-bottom: 8px;
+      opacity: 0.35;
+    }
+
+    .feed-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .feed-item:last-child { border-bottom: none; }
+
+    .feed-icon { font-size: 16px; flex-shrink: 0; }
+    .feed-icon.running   { color: var(--green); }
+    .feed-icon.completed { color: var(--text-tertiary); }
+
+    .feed-name { flex: 1; color: var(--text-primary); }
+
+    .feed-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .feed-badge.running   { background: var(--green-bg); color: var(--green); }
+    .feed-badge.completed { background: var(--gray-bg);  color: var(--text-secondary); }
+
+    .feed-wfid {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .feed-ago {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    /* ── Pulse animation ──────────────────────────────────────────────────── */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+    .pulse { animation: pulse 1.4s ease-in-out infinite; }
+
+    /* ── Responsive ───────────────────────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .stats-grid  { grid-template-columns: repeat(2, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
+      .feed-wfid   { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-row">
+      <span class="header-title">Serverless Workers — live demo</span>
+      <span class="badge badge-blue">Pre-release</span>
+    </div>
+    <p class="header-sub">
+      Submit your name to start a workflow. Watch Temporal scale Lambda workers in real time. 👇
+    </p>
+  </div>
+
+  <!-- Submit card -->
+  <div class="card">
+    <p class="card-label">Submit a workflow</p>
+    <div class="submit-row">
+      <input
+        type="text"
+        id="name-input"
+        placeholder="Your name or handle"
+        maxlength="64"
+        autocomplete="off"
+      />
+      <button class="btn" id="submit-btn" onclick="submitWorkflow()">
+        <i class="ti ti-player-play"></i> Start workflow
+      </button>
+    </div>
+    <p class="submit-msg" id="submit-msg"></p>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot dot-green"></span>Running</div>
+      <div class="stat-value green" id="stat-running">—</div>
+      <div class="stat-sub">workflows</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot dot-gray"></span>Completed</div>
+      <div class="stat-value" id="stat-completed">—</div>
+      <div class="stat-sub">workflows</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot dot-blue"></span>Lambda</div>
+      <div class="stat-value blue" id="stat-lambda">—</div>
+      <div class="stat-sub">invocations</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot dot-amber"></span>Backlog</div>
+      <div class="stat-value amber" id="stat-backlog">—</div>
+      <div class="stat-sub">tasks queued</div>
+    </div>
+  </div>
+
+  <!-- Sparkline charts -->
+  <div class="charts-grid">
+    <div class="card" style="margin-bottom:0;">
+      <div class="chart-header">
+        <span class="card-label" style="margin:0;">Lambda concurrency</span>
+        <span class="chart-peak blue" id="lambda-peak"></span>
+      </div>
+      <div class="spark" id="spark-lambda"></div>
+      <div class="chart-time"><span>60s ago</span><span>now</span></div>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="chart-header">
+        <span class="card-label" style="margin:0;">Task queue backlog</span>
+        <span class="chart-peak amber" id="backlog-peak"></span>
+      </div>
+      <div class="spark" id="spark-backlog"></div>
+      <div class="chart-time"><span>60s ago</span><span>now</span></div>
+    </div>
+  </div>
+
+  <!-- Spacer between charts row and feed -->
+  <div style="margin-bottom: 1rem;"></div>
+
+  <!-- Activity feed -->
+  <div class="card">
+    <p class="card-label">Activity feed</p>
+    <div id="activity-feed">
+      <div class="feed-empty">
+        <i class="ti ti-radar-2"></i>
+        Waiting for submissions...
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  // ── Sparkline state ──────────────────────────────────────────────────────
+  const SPARK_POINTS = 30;
+  let lambdaSpark  = new Array(SPARK_POINTS).fill(0);
+  let backlogSpark = new Array(SPARK_POINTS).fill(0);
+
+  // ── Activity feed state ──────────────────────────────────────────────────
+  // Keyed by workflowId so we can update status in place when metrics confirm
+  // completion. Also tracks a local submission list for the feed display.
+  const MAX_FEED = 10;
+  let feedItems = []; // { workflowId, name, status, time }
+
+  // ── Submit ───────────────────────────────────────────────────────────────
+  async function submitWorkflow() {
+    const input = document.getElementById('name-input');
+    const msg   = document.getElementById('submit-msg');
+    const btn   = document.getElementById('submit-btn');
+    const name  = input.value.trim();
+
+    if (!name) {
+      setMsg('Please enter your name or handle.', 'err');
+      input.focus();
+      return;
+    }
+
+    btn.disabled = true;
+    setMsg('Starting workflow…', '');
+
+    try {
+      const resp = await fetch('/api/submit', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name }),
+      });
+
+      if (resp.status === 429) {
+        setMsg('Slow down! Rate limit hit — try again in a moment.', 'err');
+        return;
+      }
+      if (!resp.ok) {
+        const text = await resp.text();
+        setMsg('Error: ' + text, 'err');
+        return;
+      }
+
+      const data = await resp.json();
+      setMsg(`✓ Workflow ${data.workflowId} started for "${name}"`, 'ok');
+      input.value = '';
+
+      // Optimistically add to feed as running
+      feedItems.unshift({ workflowId: data.workflowId, name, status: 'running', time: new Date() });
+      if (feedItems.length > MAX_FEED) feedItems.pop();
+      renderFeed();
+
+    } catch (e) {
+      setMsg('Network error — is the server running?', 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Allow Enter key in the input to submit
+  document.getElementById('name-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitWorkflow();
+  });
+
+  function setMsg(text, cls) {
+    const el = document.getElementById('submit-msg');
+    el.textContent = text;
+    el.className = 'submit-msg' + (cls ? ' ' + cls : '');
+  }
+
+  // ── Metrics polling ───────────────────────────────────────────────────────
+  // Polls /api/metrics every 3 seconds (server-side cache means this is cheap).
+  async function fetchMetrics() {
+    try {
+      const resp = await fetch('/api/metrics');
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      // Update stat cards
+      setText('stat-running',   data.runningWorkflows   ?? 0);
+      setText('stat-completed', data.completedWorkflows ?? 0);
+      setText('stat-lambda',    Math.round(data.lambdaConcurrency ?? 0));
+      setText('stat-backlog',   Math.round(data.backlogDepth      ?? 0));
+
+      // Push new data points onto sparklines
+      lambdaSpark.push(Math.round(data.lambdaConcurrency ?? 0));
+      lambdaSpark.shift();
+      backlogSpark.push(Math.round(data.backlogDepth ?? 0));
+      backlogSpark.shift();
+
+      drawSpark('spark-lambda',  lambdaSpark,  '#4f8ef7', 'rgba(79,142,247,0.3)');
+      drawSpark('spark-backlog', backlogSpark, '#f0a030', 'rgba(240,160,48,0.3)');
+
+      // Update peak labels
+      const lPeak = Math.max(...lambdaSpark);
+      const bPeak = Math.max(...backlogSpark);
+      document.getElementById('lambda-peak').textContent  = lPeak > 0 ? `peak ${lPeak}` : '';
+      document.getElementById('backlog-peak').textContent = bPeak > 0 ? `peak ${bPeak}` : '';
+
+      // Reconcile feed item statuses against real completed count.
+      // Simple heuristic: if completedWorkflows went up, mark oldest running
+      // feed item as completed. The real source of truth is Temporal Cloud —
+      // this is just cosmetic for the feed display.
+      reconcileFeedStatuses(data.runningWorkflows ?? 0);
+
+    } catch (e) {
+      // Silently ignore — don't disrupt the UI if a single poll fails
+    }
+  }
+
+  function setText(id, val) {
+    document.getElementById(id).textContent = val;
+  }
+
+  // ── Sparkline renderer ────────────────────────────────────────────────────
+  function drawSpark(containerId, data, colorRecent, colorOld) {
+    const container = document.getElementById(containerId);
+    const max = Math.max(...data, 1);
+    container.innerHTML = data.map((v, i) => {
+      const h        = Math.max(3, Math.round((v / max) * 52));
+      const isRecent = i >= data.length - 5;
+      const color    = v > 0 ? (isRecent ? colorRecent : colorOld) : 'rgba(255,255,255,0.06)';
+      return `<div class="spark-bar" style="height:${h}px; background:${color};"></div>`;
+    }).join('');
+  }
+
+  // ── Activity feed ─────────────────────────────────────────────────────────
+  function reconcileFeedStatuses(runningCount) {
+    // Count how many items we think are running vs what the server says.
+    const localRunning = feedItems.filter(i => i.status === 'running').length;
+    let excess = localRunning - runningCount;
+    // Mark oldest running items as completed to match server count.
+    for (let i = feedItems.length - 1; i >= 0 && excess > 0; i--) {
+      if (feedItems[i].status === 'running') {
+        feedItems[i].status = 'completed';
+        feedItems[i].time   = new Date();
+        excess--;
+      }
+    }
+    renderFeed();
+  }
+
+  function renderFeed() {
+    const feed = document.getElementById('activity-feed');
+    if (!feedItems.length) {
+      feed.innerHTML = `
+        <div class="feed-empty">
+          <i class="ti ti-radar-2"></i>
+          Waiting for submissions...
+        </div>`;
+      return;
+    }
+
+    feed.innerHTML = feedItems.map(item => {
+      const ago    = Math.round((Date.now() - item.time) / 1000);
+      const agoStr = ago < 5 ? 'just now' : `${ago}s ago`;
+      const isRun  = item.status === 'running';
+      const iconCls = isRun ? 'ti-circle-dashed pulse' : 'ti-circle-check';
+      const shortId = item.workflowId.length > 20
+        ? item.workflowId.slice(0, 20) + '…'
+        : item.workflowId;
+
+      return `
+        <div class="feed-item">
+          <i class="ti ${iconCls} feed-icon ${item.status}"></i>
+          <span class="feed-name">${escapeHtml(item.name)}</span>
+          <span class="feed-badge ${item.status}">${item.status}</span>
+          <span class="feed-wfid">${escapeHtml(shortId)}</span>
+          <span class="feed-ago">${agoStr}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Kick everything off ───────────────────────────────────────────────────
+  // Initial renders
+  drawSpark('spark-lambda',  lambdaSpark,  '#4f8ef7', 'rgba(79,142,247,0.3)');
+  drawSpark('spark-backlog', backlogSpark, '#f0a030', 'rgba(240,160,48,0.3)');
+
+  // Start polling — metrics every 3s, feed timestamps refreshed every 5s
+  fetchMetrics();
+  setInterval(fetchMetrics, 3000);
+  setInterval(renderFeed,   5000);
+</script>
+</body>
+</html>

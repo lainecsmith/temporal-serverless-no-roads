@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      serviceAccountName: demo-app  # IRSA — annotated below in serviceaccount.yaml
+      containers:
+        - name: demo-app
+          image: <your-ecr-repo>/demo-app:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LAMBDA_FUNCTION_NAME
+              value: "serverless-demo-worker"  # TODO: update to your Lambda function name
+            - name: TEMPORAL_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-credentials
+                  key: address
+            - name: TEMPORAL_NAMESPACE
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-credentials
+                  key: namespace
+            - name: TEMPORAL_TLS_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-credentials
+                  key: tls-cert
+            - name: TEMPORAL_TLS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-credentials
+                  key: tls-key
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /api/metrics
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

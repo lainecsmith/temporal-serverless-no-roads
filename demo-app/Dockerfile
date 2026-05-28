@@ -1,0 +1,22 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /build
+
+# Copy shared module first (referenced via replace directive)
+COPY shared/ ../shared/
+
+# Copy demo-app module
+COPY demo-app/ .
+
+RUN go build -o demo-app .
+
+# --- Final image ---
+FROM alpine:3.19
+
+WORKDIR /app
+
+COPY --from=builder /build/demo-app .
+
+EXPOSE 8080
+
+ENTRYPOINT ["./demo-app"]
